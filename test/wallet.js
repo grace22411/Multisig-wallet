@@ -39,4 +39,54 @@ contract("Wallet", (accounts) => {
       "only approver allowed"
     );
   });
+
+  it("should increment approvals", async () => {
+    await wallet.createTransfer(100, accounts[5], { from: accounts[0] });
+    await wallet.approveTransfer(0, {from:accounts[0]})
+    const transfers = await wallet.getTransfers();
+    const balance =await web3.eth.getBalance(wallet.address);
+    assert(transfers[0].approvals === '1');
+    assert(transfers[0].sent === false);
+    assert(balance === '1000');
+
+  });
+
+  it('should send transfer if quorum reached', async () => {
+    const  balanceBefore = web3.utils.toBN(await web3.eth.getBalance(accounts[6]));
+    await wallet.createTransfer(100, accounts[6], { from: accounts[0] });
+    await wallet.approveTransfer(0, {from:accounts[0]})
+    await wallet.approveTransfer(0, {from:accounts[1]})
+    const  balanceAfter = web3.utils.toBN(await web3.eth.getBalance(accounts[6]));
+
+    assert(balanceAfter.sub(balanceBefore).toNumber() === 100)
+    
+  });
+
+  it('should NOT aprrove transfer if sender is not approved', async () => {
+    await wallet.createTransfer(100, accounts[5], { from: accounts[0] });
+    await expectRevert(
+      wallet.approveTransfer(0, { from: accounts[7] }),
+      "only approver allowed"
+    );
+  });
+
+  it('should NOT aprrove transfer if transfer is already sent', async () => {
+    await wallet.createTransfer(100, accounts[6], { from: accounts[0] });
+    await wallet.approveTransfer(0, {from:accounts[0]});
+    await wallet.approveTransfer(0, {from:accounts[1]});
+    await expectRevert(
+      wallet.approveTransfer(0, { from: accounts[2] }),
+      "Transfer has been sent"
+    );
+  })
+
+  it('should NOT aprrove transfer twice', async () => {
+    await wallet.createTransfer(100, accounts[6], { from: accounts[0] });
+    await wallet.approveTransfer(0, {from: accounts[1]});
+    await expectRevert(
+      wallet.approveTransfer(0, {from:accounts[1]}),
+      "cannot approve transaction twice"
+    );
+  });
+
 });
